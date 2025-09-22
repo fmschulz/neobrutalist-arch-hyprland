@@ -1,0 +1,182 @@
+# Custom bashrc configuration for Arch Linux Hyprland setup
+# Extracted from NixOS configuration
+
+# ===== PATH CONFIGURATION =====
+# Add scripts directory to PATH
+export PATH="$HOME/.config/scripts:$PATH"
+
+# ===== CUSTOM ALIASES =====
+# Modern CLI tool replacements
+alias ls='eza --color=auto'
+alias ll='eza -alF --color=auto'
+alias la='eza -A --color=auto'
+alias l='eza -CF --color=auto'
+alias tree='eza --tree'
+
+alias cat='bat'
+alias grep='rg'
+alias find='fd'
+
+# Keep original commands available with g prefix
+alias gls='/usr/bin/ls'
+alias gcat='/usr/bin/cat'
+alias ggrep='/usr/bin/grep'
+alias gfind='/usr/bin/find'
+
+# Traditional grep with color
+alias fgrep='fgrep --color=auto'
+alias egrep='egrep --color=auto'
+
+# Git aliases
+alias gs='git status'
+alias ga='git add'
+alias gc='git commit'
+alias gp='git push'
+alias gl='git log --oneline'
+alias gd='git diff'
+
+# dev
+alias px="pixi"
+alias pxr="pixi run"
+alias pxs="pixi shell"
+alias pxa="pixi add"
+alias pxg="pixi global"
+
+# Clipboard aliases
+alias pbcopy='wl-copy'
+alias pbpaste='wl-paste'
+alias clipboard='cliphist list | wofi --dmenu | cliphist decode | wl-copy'
+alias clipclear='cliphist wipe'
+
+# System info
+alias h='history'
+alias hg='history | grep'
+alias free='free -h'
+alias df='df -h'
+alias du='du -h'
+
+# SSH wrapper function for better terminal compatibility
+ssh() {
+  case "$TERM" in
+    xterm-kitty|kitty)
+      TERM=xterm-256color command ssh "$@"
+      ;;
+    *)
+      command ssh "$@"
+      ;;
+  esac
+}
+
+# ===== CUSTOM FUNCTIONS =====
+# FZF-powered functions
+if command -v fzf >/dev/null 2>&1; then
+  # Interactive file search and edit
+  fe() {
+    local files
+    files=$(fzf --query="$1" --multi --select-1 --exit-0) &&
+    ${EDITOR:-vim} "${files[@]}"
+  }
+
+  # Interactive directory navigation
+  fcd() {
+    local dir
+    dir=$(find ${1:-.} -path '*/\.*' -prune -o -type d -print 2> /dev/null | fzf +m) &&
+    cd "$dir"
+  }
+
+  # Interactive process kill
+  fkill() {
+    local pid
+    pid=$(ps -ef | sed 1d | fzf -m | awk '{print $2}')
+    if [ "x$pid" != "x" ]; then
+      echo $pid | xargs kill -${1:-9}
+    fi
+  }
+fi
+
+# WiFi management functions
+wifiscan() {
+  echo "Scanning for available WiFi networks..."
+  nmcli device wifi list
+}
+
+wificonnect() {
+  if [ -z "$1" ]; then
+    echo "Usage: wificonnect <wifi-name>"
+    echo "Example: wificonnect \"MyWiFiNetwork\""
+    return 1
+  fi
+
+  echo "Connecting to WiFi network: $1"
+  nmcli device wifi connect "$1"
+}
+
+# ===== ENVIRONMENT SETUP =====
+# Default editor
+export EDITOR="vim"
+export VISUAL="vim"
+
+# Node.js
+export NODE_OPTIONS="--max-old-space-size=4096"
+
+# Python
+export PYTHONDONTWRITEBYTECODE=1
+
+# ===== SHELL OPTIONS =====
+# History settings
+export HISTSIZE=10000
+export HISTFILESIZE=20000
+export HISTCONTROL=ignoreboth:erasedups
+export HISTIGNORE="ls:cd:cd -:pwd:exit:date:* --help:history:clear"
+export HISTTIMEFORMAT="%Y-%m-%d %H:%M:%S "
+
+# Append to history file instead of overwriting
+shopt -s histappend
+# Check window size after each command
+shopt -s checkwinsize
+# Correct minor spelling errors in cd
+shopt -s cdspell
+# Include dotfiles in pathname expansion
+shopt -s dotglob
+# Case-insensitive pathname expansion
+shopt -s nocaseglob
+
+# ===== PROMPT CUSTOMIZATION =====
+# This will be overridden by starship if it's active
+export PS1='\[\e[1;32m\]\u@\h\[\e[0m\]:\[\e[1;34m\]\w\[\e[0m\]\$ '
+
+# ===== SYSTEM INTEGRATIONS =====
+# Bash completion
+if [[ ! -v BASH_COMPLETION_VERSINFO ]]; then
+  if [ -f /etc/bash_completion ]; then
+    source /etc/bash_completion
+  elif [ -f /usr/share/bash-completion/bash_completion ]; then
+    source /usr/share/bash-completion/bash_completion
+  fi
+fi
+
+# Zoxide (smart cd)
+if command -v zoxide >/dev/null 2>&1; then
+    eval "$(zoxide init bash)"
+fi
+
+# Yazi function for cd on exit
+function yy() {
+  local tmp="$(mktemp -t "yazi-cwd.XXXXX")"
+  yazi "$@" --cwd-file="$tmp"
+  if cwd="$(cat -- "$tmp")" && [ -n "$cwd" ] && [ "$cwd" != "$PWD" ]; then
+    builtin cd -- "$cwd"
+  fi
+  rm -f -- "$tmp"
+}
+
+# Kitty integration
+if test -n "$KITTY_INSTALLATION_DIR"; then
+  export KITTY_SHELL_INTEGRATION="no-rc"
+  source "$KITTY_INSTALLATION_DIR/shell-integration/bash/kitty.bash"
+fi
+
+# Welcome banner (once per session)
+if [[ $- == *i* ]] && [[ -x ~/.config/scripts/welcome.sh ]]; then
+  ~/.config/scripts/welcome.sh
+fi
